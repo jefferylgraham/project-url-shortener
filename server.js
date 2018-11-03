@@ -1,27 +1,25 @@
 "use strict";
-
+const { MongooseAutoIncrementID } = require("mongoose-auto-increment-reworked");
 var express = require("express");
 var mongo = require("mongodb");
-var bodyParser = require("body-parser");
 var mongoose = require("mongoose");
-var http = require("http").Server(app);
-var io = require("socket.io")(http);
+var bodyParser = require("body-parser");
 
 var cors = require("cors");
 
 var app = express();
-
-//error handling for mongoose
-function handleErr() {
-  console.log("Error");
-}
 
 // Basic Configuration
 var port = process.env.PORT || 3000;
 
 /** this project needs a db !! **/
 
-// mongoose.connect(process.env.MONGOLAB_URI);
+mongoose.connect(
+  "mongodb://jefferylgraham:passw0rd@ds151393.mlab.com:51393/url-shortener",
+  {
+    useMongoClient: true
+  }
+);
 
 app.use(cors());
 
@@ -32,12 +30,28 @@ app.use("/public", express.static(process.cwd() + "/public"));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 
-var db =
-  "mongodb://jefferylgraham:passw0rd@ds061258.mlab.com:61258/url-shortener";
+var Schema = mongoose.Schema;
 
-var Url = mongoose.model("Url", {
-  url: String
+var UrlSchema = new Schema({
+  url: String,
+  url_id: { type: Number }
 });
+
+const options = {
+  field: "url_id", // user_id will have an auto-incrementing value
+  incrementBy: 1, // incremented by 2 every time
+  nextCount: false, // Not interested in getting the next count - don't add it to the model
+  startAt: 1, // Start the counter at 1000
+  unique: false // Don't add a unique index
+};
+
+MongooseAutoIncrementID.initialise("MyCustomName");
+
+const plugin = new MongooseAutoIncrementID(UrlSchema, "Url", options);
+
+UrlSchema.plugin(MongooseAutoIncrementID.plugin, { modelName: "Url" });
+
+var Url = mongoose.model("Url", UrlSchema);
 
 app.get("/", function(req, res) {
   res.sendFile(process.cwd() + "/views/index.html");
@@ -50,36 +64,17 @@ app.get("/api/hello", function(req, res) {
 
 app.post("/api/shorturl/new", async (req, res) => {
   try {
-    var url = new Url(req.body);
+    var originalUrl = new Url(req.body);
 
-    var savedUrl = await url.save();
-    console.log("Saved");
-
-    var censored = await Url.findOne({ message: "badword" });
-
-    if (censored) {
-      await Url.remove({ _id: censored.id });
-    } else {
-      io.emit("message", req.body);
-    }
-    res.sendStatus(200);
+    var savedUrl = await originalUrl.save();
+    return res.json({ original_url: req.body.url, short_url: originalUrl.id });
   } catch (error) {
     res.sendStatus(500);
     return console.error(error);
   } finally {
-    console.log("Url post called");
+    console.log("url post called");
   }
 });
-
-mongoose.connect(
-  db,
-  {
-    useMongoClient: true
-  },
-  err => {
-    console.log("Mongo DB Connection", err);
-  }
-);
 
 app.listen(port, function() {
   console.log("Node.js listening ...");
