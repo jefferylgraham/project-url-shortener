@@ -1,9 +1,11 @@
 "use strict";
-const { MongooseAutoIncrementID } = require("mongoose-auto-increment-reworked");
+var { MongooseAutoIncrementID } = require("mongoose-auto-increment-reworked");
 var express = require("express");
 var mongo = require("mongodb");
 var mongoose = require("mongoose");
 var bodyParser = require("body-parser");
+var dns = require("dns");
+var url = require("url");
 
 var cors = require("cors");
 
@@ -68,15 +70,36 @@ app.post("/api/shorturl/new", async (req, res) => {
   try {
     var originalUrl = new Url(req.body);
 
-    //check to see if url is already in db
-    var duplicate = await Url.findOne({ url: originalUrl.url });
-    if (duplicate) {
-      return res.json({ original_url: req.body.url, short_url: duplicate.id });
-    }
+    var host = new URL(originalUrl.url);
 
-    var savedUrl = await originalUrl.save();
+    //check to see if url is valid
+    var lookup = dns.lookup(host.hostname, async (err, addresses) => {
+      //for valid addresses
+      if (addresses) {
+        //check to see if url is already in db
+        var duplicate = await Url.findOne({ url: originalUrl.url });
+        if (duplicate) {
+          return res.json({
+            original_url: req.body.url,
+            short_url: duplicate.id
+          });
+        }
 
-    return res.json({ original_url: req.body.url, short_url: originalUrl.id });
+        //if not already in db, save to
+        var savedUrl = await originalUrl.save();
+
+        return res.json({
+          original_url: req.body.url,
+          short_url: originalUrl.id
+        });
+      }
+      //if not valid return invalid json response
+      else {
+        return res.json({
+          error: "invalid"
+        });
+      }
+    });
   } catch (error) {
     res.sendStatus(500);
     return console.error(error);
