@@ -37,15 +37,17 @@ var UrlSchema = new Schema({
   url_id: { type: Number }
 });
 
+//Implement mongoose auto increment reworked module
 const options = {
-  field: "url_id", // user_id will have an auto-incrementing value
+  field: "url_id", // url_id will have an auto-incrementing value
   incrementBy: 1, // incremented by 2 every time
   nextCount: false, // Not interested in getting the next count - don't add it to the model
+  resetCount: false,
   startAt: 1, // Start the counter at 1000
-  unique: false // Don't add a unique index
+  unique: true // Don't add a unique index
 };
 
-MongooseAutoIncrementID.initialise("MyCustomName");
+MongooseAutoIncrementID.initialise("UrlShortener");
 
 const plugin = new MongooseAutoIncrementID(UrlSchema, "Url", options);
 
@@ -66,7 +68,14 @@ app.post("/api/shorturl/new", async (req, res) => {
   try {
     var originalUrl = new Url(req.body);
 
+    //check to see if url is already in db
+    var duplicate = await Url.findOne({ url: originalUrl.url });
+    if (duplicate) {
+      return res.json({ original_url: req.body.url, short_url: duplicate.id });
+    }
+
     var savedUrl = await originalUrl.save();
+
     return res.json({ original_url: req.body.url, short_url: originalUrl.id });
   } catch (error) {
     res.sendStatus(500);
