@@ -66,6 +66,13 @@ app.get("/api/hello", function(req, res) {
   res.json({ greeting: "hello API" });
 });
 
+app.get("/api/shorturl/:urlId", (req, res) => {
+  var urlId = req.params.urlId;
+  var url = Url.findById(urlId).exec(function(err, urls) {
+    res.redirect(urls.url);
+  });
+});
+
 app.post("/api/shorturl/new", async (req, res) => {
   try {
     var originalUrl = new Url(req.body);
